@@ -16,11 +16,11 @@ package halfpike
 import (
 	"context"
 	"fmt"
-	"strings"
-	"unicode/utf8"
-	"strconv"
 	"regexp"
+	"strconv"
+	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // stateFn is used to process some part of an input line either emitting tokens and
@@ -54,10 +54,10 @@ const (
 
 // Line represents a line in the input.
 type Line struct {
-	Items []Item
+	Items   []Item
 	LineNum int
-	Raw string
-	pos int
+	Raw     string
+	pos     int
 }
 
 // Next returns the next item in the line. If we have already reached the end of the line,
@@ -72,7 +72,7 @@ func (l Line) Next() Item {
 	return item
 }
 
-// Backup takes the position back one item. If this would go into a negative position it panics. 
+// Backup takes the position back one item. If this would go into a negative position it panics.
 func (l Line) Backup() Item {
 	l.pos--
 	if l.pos < 0 {
@@ -143,7 +143,7 @@ func (i Item) ToFloat() (float64, error) {
 // ItemJoin takes a line, the inclusive beginning index and the non-inclusive ending index and
 // joins all the values with a single space between them. -1 for start or end means from the absolute
 // begin or end of the line slice. This will automatically remove the carriage return or EOF items.
-func ItemJoin(line Line, start, end int) string{
+func ItemJoin(line Line, start, end int) string {
 	const space = " "
 	var l Line
 
@@ -160,7 +160,7 @@ func ItemJoin(line Line, start, end int) string{
 
 	b := strings.Builder{}
 	for _, i := range l.Items {
-		if i.Type == ItemEOL || i.Type == ItemEOF  || i.Type == itemSpace {
+		if i.Type == ItemEOL || i.Type == ItemEOF || i.Type == itemSpace {
 			break
 		}
 		if b.Len() > 0 {
@@ -173,11 +173,11 @@ func ItemJoin(line Line, start, end int) string{
 
 // Lexer holds the state of the scanner.
 type lexer struct {
-	input string    // the string being scanned.
-	start int       // start position of this item.
-	pos   int       // current position in the input.
-	width int       // width of last rune read from input.
-	items chan Item // channel of scanned items.
+	input   string    // the string being scanned.
+	start   int       // start position of this item.
+	pos     int       // current position in the input.
+	width   int       // width of last rune read from input.
+	items   chan Item // channel of scanned items.
 	startFn stateFn
 }
 
@@ -208,7 +208,7 @@ func (l *lexer) run() {
 }
 
 // emit creates an item for content from the last emit() until this point in the run.
-func (l *lexer) emit(t ItemType, ri...rawInfo) ItemType {
+func (l *lexer) emit(t ItemType, ri ...rawInfo) ItemType {
 	var item Item
 	switch t {
 	case ItemEOL, ItemEOF:
@@ -230,7 +230,7 @@ func (l *lexer) current() string {
 	return l.input[l.start:l.pos]
 }
 
-// ignore skips over the pending input before this point, meaning it wil not be used in an 
+// ignore skips over the pending input before this point, meaning it wil not be used in an
 // Item when Emit() is called.
 func (l *lexer) ignore() {
 	l.start = l.pos
@@ -274,12 +274,12 @@ func untilSpace(l *lexer) stateFn {
 
 	last := ItemUnknown
 	r := l.next()
-	for ;true;r = l.next() {
+	for ; true; r = l.next() {
 		raw.WriteRune(r)
 
 		switch {
 		case r == '\n':
-			switch last{
+			switch last {
 			// We don't care about blank lines.
 			case ItemUnknown, ItemEOL:
 				l.ignore()
@@ -302,7 +302,6 @@ func untilSpace(l *lexer) stateFn {
 			l.next()
 			last = l.emit(ItemEOL, rawInfo{raw.String(), lineNum})
 			raw.Reset()
-
 
 			lineNum++
 		case r == rune(ItemEOF):
@@ -333,7 +332,7 @@ func untilSpace(l *lexer) stateFn {
 		}
 	}
 	panic("untilSpace() unexpectantly escaped its 'for loop' without returning")
-} 
+}
 
 func isInt(s string) bool {
 	_, err := strconv.Atoi(s)
@@ -352,7 +351,7 @@ func isFloat(s string) bool {
 }
 
 // Validator provides methods to validate that a data type is okay.
-type Validator interface{
+type Validator interface {
 	// Validate indicates if the type validates or not.
 	Validate() error
 }
@@ -363,7 +362,7 @@ type ParseFn func(ctx context.Context, p *Parser) ParseFn
 // Parse begins parsing content from the underlying input to Parser. Parsing starts with the "start" ParseFn
 // until a returned ParseFn == nil. Calling p.HasError() will return an error if there was one. If err == nil,
 // the Validator object passed to Parser should have .Validate() called to ensure all data is correct.
-func Parse(ctx context.Context, p *Parser, start ParseFn) error{
+func Parse(ctx context.Context, p *Parser, start ParseFn) error {
 	go p.lex.run()
 
 	for state := start; state != nil; {
@@ -374,7 +373,7 @@ func Parse(ctx context.Context, p *Parser, start ParseFn) error{
 		return err
 	}
 
-	if err := p.Validator().Validate(); err != nil {
+	if err := p.Validator.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -388,19 +387,25 @@ type Parser struct {
 	pos   int
 	recv  chan Item
 
-	lex *lexer
-	val Validator
-	err error
+	lex       *lexer
+	Validator Validator
+	err       error
 }
 
 // NewParser is the constructor for Parser.
 func NewParser(input string, val Validator) (*Parser, error) {
 	l := newLexer(input, untilSpace)
 	return &Parser{
-		lex: l,
-		recv: l.items,
-		val: val,
+		lex:       l,
+		recv:      l.items,
+		Validator: val,
 	}, nil
+}
+
+// TODO(johnsiilver): Implement this or we are going to leak goroutines.
+// TODO(johnsiilver): Update the reset to also shut down the lexer so that we stop leaking.
+func (p *Parser) Close() {
+
 }
 
 func (p *Parser) pull() Line {
@@ -409,6 +414,12 @@ func (p *Parser) pull() Line {
 		for item := range p.recv {
 			switch item.Type {
 			case ItemEOF, ItemEOL:
+				// The last Item records the raw and line value. Extract these from the item
+				// and move them to the Line entries.
+				line.Raw = item.raw
+				line.LineNum = item.lineNum
+				item.raw = ""
+				item.lineNum = 0
 				line.Items = append(line.Items, item)
 			default:
 				line.Items = append(line.Items, item)
@@ -420,11 +431,6 @@ func (p *Parser) pull() Line {
 	return line
 }
 
-// Validator returns the Validator object.
-func (p *Parser) Validator() Validator {
-	return p.val
-}
-
 // HasError returns if the Parser encountered an error.
 func (p *Parser) HasError() error {
 	return p.err
@@ -432,7 +438,7 @@ func (p *Parser) HasError() error {
 
 // Errorf records an error in parsing. The ParseFn should immediately return nil.
 // Errorf will always return a nil ParseFn.
-func (p *Parser) Errorf(str string, args ...interface{}) ParseFn{
+func (p *Parser) Errorf(str string, args ...interface{}) ParseFn {
 	p.err = fmt.Errorf(str, args...)
 	return nil
 }
@@ -442,7 +448,7 @@ func (p *Parser) Reset(s string, val Validator) error {
 	p.lex.reset(s)
 	p.lines = p.lines[:]
 	p.recv = p.lex.items
-	p.val = val
+	p.Validator = val
 
 	return nil
 }
@@ -476,7 +482,7 @@ func (p *Parser) Next() Line {
 
 	// See if we already have found the end of input.
 	if p.pos >= len(p.lines) {
-		lastLine := len(p.lines) -1
+		lastLine := len(p.lines) - 1
 		if p.EOF(p.lines[lastLine]) {
 			return p.lines[lastLine]
 		}
@@ -500,33 +506,53 @@ func (p *Parser) Peek() Line {
 	return i
 }
 
-// Any provides a special string for FindItemStart that will skip an item.
+// Any provides a special string for FindStart that will skip an item.
 const Skip = "$.<skip>.$"
 
-// FindItemStart looks for an exact match of starting items in a line represented by Line
-// continuing to call .Next() until a match is found or EOF is reached. 
-// Once this is found, Linew is returned. This is done from the current position.
-func (p *Parser) FindItemStart(find []string) (Line, error) {
+// FindStart looks for an exact match of starting items in a line represented by Line
+// continuing to call .Next() until a match is found or EOF is reached.
+// Once this is found, Line is returned. This is done from the current position.
+func (p *Parser) FindStart(find []string) (Line, error) {
 	for line := p.Next(); true; line = p.Next() {
-		if p.IsItemsAtStart(line, find) {
+		if p.IsAtStart(line, find) {
 			return line, nil
 		}
 
 		if p.EOF(line) {
-			return Line{}, fmt.Errorf("FindItemStart: end of file reached without finding items: %#+v", find)
+			return Line{}, fmt.Errorf("end of file reached without finding items: %#+v", find)
 		}
 	}
-	panic("FindItemStart() escaped for loop without returning")
+	panic("FindStart() escaped for loop without returning")
 }
 
-// IsItemsAtStart checks to see that "find" is at the beginning of "line".
-func (p *Parser) IsItemsAtStart(line Line, find []string) bool {
+// FindUntil searches for a Line that matches "find" until it finds a line that matches "until". This is useful
+// for searching for a sub entry of some type of record until you hit the next recordf. If until is reached, we Backup()
+// before the until Line so that the .Next() call will return it.  "found" is only returned if "find" matches
+func (p *Parser) FindUntil(find []string, until []string) (matchFound Line, untilFound bool, err error) {
+	for line := p.Next(); true; line = p.Next() {
+		if p.IsAtStart(line, find) {
+			return line, false, nil
+		}
+		if p.IsAtStart(line, until) {
+			p.Backup()
+			return Line{}, true, nil
+		}
+
+		if p.EOF(line) {
+			return Line{}, false, fmt.Errorf("end of file reached without finding items: %#+v", find)
+		}
+	}
+	panic("FindUntil() escaped for loop without returning")
+}
+
+// IsAtStart checks to see that "find" is at the beginning of "line".
+func (p *Parser) IsAtStart(line Line, find []string) bool {
 	if len(find) == 0 {
 		return true
 	}
 
 	if len(line.Items) < len(find) {
-			return false
+		return false
 	}
 
 	for i, f := range find {
@@ -542,33 +568,33 @@ func (p *Parser) IsItemsAtStart(line Line, find []string) bool {
 	return true
 }
 
-// FindItemRegexStart looks for a match of [n]*regexp.Regexp against [n]Item.Val continuing to call .Next()
+// FindREStart looks for a match of [n]*regexp.Regexp against [n]Item.Val continuing to call .Next()
 // until a match is found or EOF is reached. Once this is found, Line is returned. This is done from the current position.
-func (p *Parser) FindItemRegexStart(find []*regexp.Regexp) (Line, error) {
+func (p *Parser) FindREStart(find []*regexp.Regexp) (Line, error) {
 	if len(find) == 0 {
-		return Line{}, fmt.Errorf("cannot pass empty []*regexp.Regexp to FindItemRegexStart()")
+		return Line{}, fmt.Errorf("cannot pass empty []*regexp.Regexp to FindREStart()")
 	}
 
 	for line := p.Next(); true; line = p.Next() {
-		if p.IsItemRegexStart(line, find) {
+		if p.IsREStart(line, find) {
 			return line, nil
 		}
 
 		if p.EOF(line) {
-			return Line{}, fmt.Errorf("FindItemStart: end of file reached without finding items: %#+v", find)
+			return Line{}, fmt.Errorf("FindStart: end of file reached without finding items: %#+v", find)
 		}
 	}
-	panic("FindItemRegexStart() escaped for loop without returning")
+	panic("FindREStart() escaped for loop without returning")
 }
 
-// IsItemRegexStart checks to see that matches to "find" is at the beginning of "line".
-func (p *Parser) IsItemRegexStart(line Line, find []*regexp.Regexp) bool {
+// IsREStart checks to see that matches to "find" is at the beginning of "line".
+func (p *Parser) IsREStart(line Line, find []*regexp.Regexp) bool {
 	if len(find) == 0 {
 		return false
 	}
 
 	if len(line.Items) < len(find) {
-			return false
+		return false
 	}
 
 	for i, f := range find {
@@ -593,7 +619,7 @@ func Match(re *regexp.Regexp, s string) (map[string]string, error) {
 
 	matches = matches[1:]
 	m := map[string]string{}
-	
+
 	for i, v := range matches {
 		if v == "" {
 			continue
@@ -606,18 +632,3 @@ func Match(re *regexp.Regexp, s string) (map[string]string, error) {
 
 	return m, nil
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

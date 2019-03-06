@@ -7,11 +7,84 @@ import (
 	"strings"
 	"fmt"
 	"strconv"
-	"testing"
 
 	"github.com/kylelemons/godebug/pretty"
 )
 
+func Example_long() {
+	// A slice of structs that has a .Validate() method on it.
+	// This is where our data will be stored.
+	neighbors := BGPNeighbors{}
+
+	// Creates our parers object that our various ParseFn functions will use to move
+	// through the input.
+	p, err := NewParser(showBGPNeighbor, neighbors)
+	if err != nil {
+		panic(err)
+	}
+
+	// An object that contains various ParseFn methods.
+	states := &PeerParser{}
+
+	// Parses our content in showBGPNeighbor and begins parsing with states.FindPeer
+	// which is a ParseFn.
+	if err := Parse(context.Background(), p, states.FindPeer); err != nil {
+		panic(err)
+	}
+
+	// Because we pass in a slice, we have to do a reassign to get the changed value.
+	neighbors = p.Validator.(BGPNeighbors) 
+	fmt.Println(pretty.Sprint(neighbors))
+
+/* Output:
+[{PeerIP:     10.10.10.2,
+  PeerPort:   179,
+  PeerAS:     22,
+  LocalIP:    10.10.10.1,
+  LocalPort:  65406,
+  LocalAS:    22,
+  Type:       1,
+  State:      3,
+  LastState:  5,
+  HoldTime:   90000000000,
+  Preference: 170,
+  PeerID:     10.10.10.2,
+  LocalID:    10.10.10.1,
+  InetStats:  {0: {ID:                 0,
+                   Bit:                10000,
+                   RIBState:           2,
+                   SendState:          1,
+                   ActivePrefixes:     0,
+                   RecvPrefixes:       0,
+                   AcceptPrefixes:     0,
+                   SurpressedPrefixes: 2,
+                   AdvertisedPrefixes: 0}}},
+ {PeerIP:     10.10.10.6,
+  PeerPort:   54781,
+  PeerAS:     22,
+  LocalIP:    10.10.10.5,
+  LocalPort:  179,
+  LocalAS:    22,
+  Type:       1,
+  State:      3,
+  LastState:  5,
+  HoldTime:   90000000000,
+  Preference: 170,
+  PeerID:     10.10.10.6,
+  LocalID:    10.10.10.1,
+  InetStats:  {0: {ID:                 0,
+                   Bit:                10000,
+                   RIBState:           2,
+                   SendState:          1,
+                   ActivePrefixes:     0,
+                   RecvPrefixes:       0,
+                   AcceptPrefixes:     0,
+                   SurpressedPrefixes: 0,
+                   AdvertisedPrefixes: 0}}}]
+*/
+}
+
+// showBGPNeighbor is the output we are going to lex/parse.
 var showBGPNeighbor = `
 Peer: 10.10.10.2+179 AS 22     Local: 10.10.10.1+65406 AS 17   
   Type: External    State: Established    Flags: <Sync>
@@ -43,7 +116,7 @@ Peer: 10.10.10.2+179 AS 22     Local: 10.10.10.1+65406 AS 17
     Active prefixes:              0
     Received prefixes:            0
     Accepted prefixes:            0
-    Suppressed due to damping:    0
+    Suppressed due to damping:    2
     Advertised prefixes:          0
   Last traffic (seconds): Received 10   Sent 6    Checked 1   
   Input messages:  Total 8522   Updates 1       Refreshes 0     Octets 161922
@@ -87,17 +160,6 @@ Peer: 10.10.10.6+54781 AS 22   Local: 10.10.10.5+179 AS 17
   Output messages: Total 8430   Updates 0       Refreshes 0     Octets 160233
   Output Queue[0]: 0
  `
-
- type MultiError []string
- 
- func (m MultiError) Error() string {
- 	return strings.Join(m, "\n\t")
- }
-
- func (m MultiError) Errorf(s string, a ...interface{}) MultiError {
- 	m = append(m, fmt.Sprintf(s, a...))
- 	return m
- }
 
 // PeerType is the type of peer the neighbor is.
 type PeerType uint8
@@ -184,7 +246,7 @@ type BGPNeighbor struct {
 	PeerID net.IP
 	// LocalID is the ID the local router uses to identify itself.
 	LocalID net.IP
-	InetTableStats map[int]*BGPNeighborInetStats
+	InetStats map[int]*InetStats
 
 	initCalled bool
 }
@@ -237,7 +299,7 @@ func (b *BGPNeighbor) Validate() error {
 		return fmt.Errorf("PeerAS was not set")
 	}
 
-	for _, v := range b.InetTableStats {
+	for _, v := range b.InetStats {
 		if err := v.Validate(); err != nil {
 			err = fmt.Errorf(err.Error())
 		}
@@ -245,8 +307,8 @@ func (b *BGPNeighbor) Validate() error {
 	return nil
 }
 
-// BGPNeighborInetStats contains information about the route table.
-type BGPNeighborInetStats struct {
+// InetStats contains information about the route table.
+type InetStats struct {
 	ID int
 	Bit int
 	RIBState RIBState
@@ -258,7 +320,7 @@ type BGPNeighborInetStats struct {
 	AdvertisedPrefixes int
 }
 
-func (b *BGPNeighborInetStats) init() {
+func (b *InetStats) init() {
 	b.Bit = -1
 	b.ActivePrefixes = -1
 	b.RecvPrefixes = -1
@@ -267,23 +329,23 @@ func (b *BGPNeighborInetStats) init() {
 }
 
 // Validate implements Validator.
-func (b *BGPNeighborInetStats) Validate() error {
+func (b *InetStats) Validate() error {
 	switch -1 {
 	case b.Bit:
-		return fmt.Errorf("BGPNeighborInetStats: Bit was not parsed from the input")
+		return fmt.Errorf("InetStats: Bit was not parsed from the input")
 	case b.ActivePrefixes:
-		return fmt.Errorf("BGPNeighborInetStats(Bit==%d): ActivePrefixes was not parsed from the input", b.Bit)
+		return fmt.Errorf("InetStats(Bit==%d): ActivePrefixes was not parsed from the input", b.Bit)
 	case b.AcceptPrefixes:
-		return fmt.Errorf("BGPNeighborInetStats(Bit==%d): AcceptPrefixes was not parsed from the input", b.Bit)
+		return fmt.Errorf("InetStats(Bit==%d): AcceptPrefixes was not parsed from the input", b.Bit)
 	case b.SurpressedPrefixes:
-		return fmt.Errorf("BGPNeighborInetStats(Bit==%d): SurpressedPrefixes was not parsed from the input", b.Bit)
+		return fmt.Errorf("InetStats(Bit==%d): SurpressedPrefixes was not parsed from the input", b.Bit)
 	}
 
 	switch {
 	case b.RIBState == RSUnknown:
-		return fmt.Errorf("BGPNeighborInetStats(Bit==%d): RIBState was unknown, which indicates the parser is broken on input", b.Bit)
+		return fmt.Errorf("InetStats(Bit==%d): RIBState was unknown, which indicates the parser is broken on input", b.Bit)
 	case b.SendState == RSSendUnknown:
-		return fmt.Errorf("BGPNeighborInetStats(Bit==%d): SendState was unknown, which indicates the parser is broken on input", b.Bit)
+		return fmt.Errorf("InetStats(Bit==%d): SendState was unknown, which indicates the parser is broken on input", b.Bit)
 	}
 	return nil
 }
@@ -321,11 +383,13 @@ func (pe *PeerParser) FindPeer(ctx context.Context, p *Parser) ParseFn {
 		localIPPort = 5
 		localASNum = 7
 	)
+	pe.peers = p.Validator.(BGPNeighbors)
 	pe.parser = p
 
 	rec := &BGPNeighbor{}
+	rec.init()
 
-	line, err := p.FindItemStart(peerRecStart)
+	line, err := p.FindStart(peerRecStart)
 	if err != nil {
 		if len(pe.peers) == 0 {
 			p.Errorf("did not locate the start of our list of peers within the output")
@@ -367,7 +431,6 @@ func (pe *PeerParser) FindPeer(ctx context.Context, p *Parser) ParseFn {
 	rec.LocalAS = as
 
 	pe.peers = append(pe.peers, rec)
-
 	return pe.typeState
 }
 
@@ -397,7 +460,7 @@ func (pe *PeerParser) typeState(ctx context.Context, p *Parser) ParseFn {
 
 	rec := pe.lastPeer()
 	
-	if !p.IsItemsAtStart(line, []string{"Type:", Skip, "State:", Skip}) {
+	if !p.IsAtStart(line, []string{"Type:", Skip, "State:", Skip}) {
 		return pe.errorf("did not have the expected 'Type' and 'State' declarations following peer line")
 	}
 
@@ -422,7 +485,7 @@ func (pe *PeerParser) lastState(ctx context.Context, p *Parser) ParseFn {
 
 	rec := pe.lastPeer()
 
-	if !p.IsItemsAtStart(line, []string{"Last", "State:", Skip}) {
+	if !p.IsAtStart(line, []string{"Last", "State:", Skip}) {
 		return pe.errorf("did not have the expected 'Last State:', got %#+v", line)
 	}
 
@@ -443,27 +506,27 @@ func (pe *PeerParser) holdTimePref(ctx context.Context, p *Parser) ParseFn {
 
 	rec := pe.lastPeer()
 
-	for line := p.Next(); !p.EOF(line); line = p.Next() {
-		switch {
-		case p.IsItemsAtStart(line, []string{"Holdtime:", Skip, "Preference:", Skip}):
-			ht, err := line.Items[hold].ToInt()
-			if err != nil {
-				return pe.errorf("Holdtime was not an integer, was %s",line.Items[hold].Val)
-			}
-			p, err := line.Items[pref].ToInt()
-			if err != nil {
-
-				return pe.errorf("Preference was not an integer, was %s", line.Items[pref].Val)
-			}
-
-			rec.HoldTime = time.Duration(ht) * time.Second
-			rec.Preference = p
-			return pe.peerIDLocalID
-		case p.IsItemsAtStart(line, peerRecStart):
-			return pe.errorf("reached next entry before finding Holdtime and Preference line")
-		}
+	line, until, err := p.FindUntil([]string{"Holdtime:", Skip, "Preference:", Skip}, peerRecStart)
+	if err != nil {
+		return pe.errorf("reached end of file before finding Holdtime and Preference line")
 	}
-	return pe.errorf("reached end of file before finding Holdtime and Preference line")
+	if until {
+		return pe.errorf("reached next entry before finding Holdtime and Preference line")
+	}
+
+	ht, err := line.Items[hold].ToInt()
+	if err != nil {
+		return pe.errorf("Holdtime was not an integer, was %s",line.Items[hold].Val)
+	}
+	prefVal, err := line.Items[pref].ToInt()
+	if err != nil {
+
+		return pe.errorf("Preference was not an integer, was %s", line.Items[pref].Val)
+	}
+
+	rec.HoldTime = time.Duration(ht) * time.Second
+	rec.Preference = prefVal
+	return pe.peerIDLocalID
 }
 
 // Peer ID: 10.10.10.6       Local ID: 10.10.10.1       Active Holdtime: 90
@@ -475,42 +538,40 @@ func (pe *PeerParser) peerIDLocalID(ctx context.Context, p *Parser) ParseFn {
 
 	rec := pe.lastPeer()
 
-	for line := p.Next(); !p.EOF(line); line = p.Next() {
-		switch {
-		case p.IsItemsAtStart(line, []string{"Peer", "ID:", Skip, "Local", "ID:", Skip}):
-			pid := net.ParseIP(line.Items[peer].Val)
-			if pid == nil {
-				return pe.errorf("PeerID does not appear to be an IP: was %s", line.Items[peer].Val)
-			}
-			loc := net.ParseIP(line.Items[local].Val)
-			if loc == nil {
-				return pe.errorf("LocalID does not appear to be an IP: was %s", line.Items[local].Val)
-			}
-			rec.PeerID = pid
-			rec.LocalID = loc
-			return pe.findTableStats
-		case p.IsItemsAtStart(line, peerRecStart):
-			return pe.errorf("reached next entry before finding PeerID and LocalID")
-			return nil
-		}
+	line, until, err := p.FindUntil([]string{"Peer", "ID:", Skip, "Local", "ID:", Skip}, peerRecStart)
+	if err != nil {
+		return pe.errorf("reached end of file before finding PeerID and LocalID")
 	}
-	return pe.errorf("reached end of file before finding PeerID and LocalID")
+	if until {
+		return pe.errorf("reached next entry before finding PeerID and LocalID")
+	}
+	pid := net.ParseIP(line.Items[peer].Val)
+	if pid == nil {
+		return pe.errorf("PeerID does not appear to be an IP: was %s", line.Items[peer].Val)
+	}
+	loc := net.ParseIP(line.Items[local].Val)
+	if loc == nil {
+		return pe.errorf("LocalID does not appear to be an IP: was %s", line.Items[local].Val)
+	}
+	rec.PeerID = pid
+	rec.LocalID = loc
+	return pe.findTableStats	
 }
 
 // Table inet.0 Bit: 10000
 func (pe *PeerParser) findTableStats(ctx context.Context, p *Parser) ParseFn { 
-	for line := p.Next(); !p.EOF(line); line = p.Next() {
-		switch {
-		case p.IsItemsAtStart(line, []string{"Table", Skip, "Bit:", Skip}):
-			p.Backup()
-			ts := &tableStats{peer: pe}
-			return ts.start
-		case p.IsItemsAtStart(line, peerRecStart):
-			p.Backup()
-			return pe.FindPeer
-		}
+	p.Validator = pe.peers
+
+	_, until, err := p.FindUntil([]string{"Table", Skip, "Bit:", Skip}, peerRecStart)
+	if err != nil {
+		return nil
 	}
-	return nil
+	if until{
+		return pe.FindPeer
+	}
+	p.Backup()
+	ts := &tableStats{peer: pe}
+	return ts.start
 }
 
 /*
@@ -525,8 +586,7 @@ Table inet.0 Bit: 10000
 */
 type tableStats struct{
 	peer *PeerParser
-	stats *BGPNeighborInetStats
-	val BGPNeighbors
+	stats *InetStats
 	rec *BGPNeighbor
 }
 
@@ -543,7 +603,6 @@ func (t *tableStats) start(ctx context.Context, p *Parser) ParseFn {
 		table = 1
 		bit = 3
 	)
-	t.val = t.peer.peers
 	t.rec = t.peer.lastPeer()
 
 	line := p.Next()
@@ -562,7 +621,7 @@ func (t *tableStats) start(ctx context.Context, p *Parser) ParseFn {
 		return t.errorf("had Table entry with bits id that wasn't an integer: %s", line.Items[bit].Val)
 		return nil
 	}
-	t.stats = &BGPNeighborInetStats{
+	t.stats = &InetStats{
 		ID: i,
 		Bit: b,
 	}
@@ -582,7 +641,7 @@ func (t *tableStats) ribState(ctx context.Context, p *Parser) ParseFn {
 
 	line := p.Next()
 
-	if !p.IsItemsAtStart(line, []string{"RIB", "State:", "BGP", Skip}) {
+	if !p.IsAtStart(line, []string{"RIB", "State:", "BGP", Skip}) {
 		return t.errorf("did not have the RIB State as expected")
 		return nil
 	}
@@ -609,7 +668,7 @@ func (t *tableStats) sendState(ctx context.Context, p *Parser) ParseFn {
 
 	line := p.Next()
 
-	if !p.IsItemsAtStart(line, []string{"Send", "state:", Skip}) {
+	if !p.IsAtStart(line, []string{"Send", "state:", Skip}) {
 		return t.errorf("did not have the Send state as expected")
 		return nil
 	}
@@ -675,17 +734,17 @@ func (t *tableStats) advertised(ctx context.Context, p *Parser) ParseFn {
 }
 
 func (t *tableStats) recordStats(ctx context.Context, p *Parser) ParseFn {
-	if t.rec.InetTableStats == nil {
-		t.rec.InetTableStats = map[int]*BGPNeighborInetStats{}
+	if t.rec.InetStats == nil {
+		t.rec.InetStats = map[int]*InetStats{}
 	}
-	t.rec.InetTableStats[t.stats.ID] = t.stats
+	t.rec.InetStats[t.stats.ID] = t.stats
 
 	return t.peer.findTableStats
 }
 
 func (t *tableStats) intKeyVal(name []string, p *Parser) (int, error) {
 	line := p.Next()
-	if !p.IsItemsAtStart(line, name) {
+	if !p.IsAtStart(line, name) {
 		return 0, fmt.Errorf("did not have %s as expected", strings.Join(name, " "))
 	}
 
@@ -713,39 +772,6 @@ func ipPort(s string) (net.IP, int, error) {
 	return ip, port, nil
 }
 
-func Example_juniper_show_bgp_neighbor() {
-	neighbors := BGPNeighbors{}
-	p, err := NewParser(showBGPNeighbor, neighbors)
-	if err != nil {
-		panic(err)
-	}
-
-	states := &PeerParser{}
-
-	if err := Parse(context.Background(), p, states.FindPeer); err != nil {
-		panic(err)
-	}
-
-	fmt.Println(pretty.Sprint(neighbors))
-}
-
-
-
-func TestEndToEnd(t *testing.T) {
-	neighbors := BGPNeighbors{}
-	p, err := NewParser(showBGPNeighbor, neighbors)
-	if err != nil {
-		panic(err)
-	}
-
-	states := &PeerParser{}
-
-	if err := Parse(context.Background(), p, states.FindPeer); err != nil {
-		panic(err)
-	}
-
-	fmt.Println(pretty.Sprint(neighbors))
-}
 
 
 
