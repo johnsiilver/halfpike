@@ -3,8 +3,8 @@ package halfpike
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/kylelemons/godebug/pretty"
@@ -22,13 +22,9 @@ Physical interface: ge-3/0/3, Enabled, Physical link is Up
 `
 
 func Example_short() {
-	// A slice of structs that has a .Validate() method on it.
-	// This is where our data will be stored.
-	inters := InterfacesBrief{}
-
 	// Creates our parers object that our various ParseFn functions will use to move
 	// through the input.
-	p, err := NewParser(showIntBrief, inters)
+	p, err := NewParser(showIntBrief, Interfaces{})
 	if err != nil {
 		panic(err)
 	}
@@ -43,11 +39,10 @@ func Example_short() {
 	}
 
 	// Because we pass in a slice, we have to do a reassign to get the changed value.
-	inters = p.Validator.(InterfacesBrief) 
-	fmt.Println(pretty.Sprint(inters))
+	fmt.Println(pretty.Sprint(p.Validator.(Interfaces)))
 
 /* Output:
-	[{VendorDesc: "ge-3/0/2,",
+[{VendorDesc: "ge-3/0/2",
   Blade:      3,
   Pic:        0,
   Port:       2,
@@ -56,7 +51,7 @@ func Example_short() {
   LinkLevel:  1,
   MTU:        1522,
   Speed:      1000000000},
- {VendorDesc: "ge-3/0/3,",
+ {VendorDesc: "ge-3/0/3",
   Blade:      3,
   Pic:        0,
   Port:       3,
@@ -69,30 +64,34 @@ func Example_short() {
 }
 
 type LinkLevel int8
+
 const (
-	LLUnknown LinkLevel = 0
-	LL52 LinkLevel = 1
-	LLPPP LinkLevel = 2
+	LLUnknown  LinkLevel = 0
+	LL52       LinkLevel = 1
+	LLPPP      LinkLevel = 2
 	LLEthernet LinkLevel = 3
 )
 
 type InterState int8
+
 const (
-	IStateUnknown InterState = 0
-	IStateEnabled InterState = 1
+	IStateUnknown  InterState = 0
+	IStateEnabled  InterState = 1
 	IStateDisabled InterState = 2
 )
 
 type InterStatus int8
+
 const (
 	IStatUnknown InterStatus = 0
-	IStatUp InterStatus = 1
-	IStatDown InterStatus = 2
+	IStatUp      InterStatus = 1
+	IStatDown    InterStatus = 2
 )
 
-// InterfacesBrief is a collection of InterfaceBrief information for a device.
-type InterfacesBrief []*InterfaceBrief
-func (i InterfacesBrief) Validate() error {
+// Interfaces is a collection of Interface information for a device.
+type Interfaces []*Interface
+
+func (i Interfaces) Validate() error {
 	for _, v := range i {
 		if err := v.Validate(); err != nil {
 			return err
@@ -101,8 +100,8 @@ func (i InterfacesBrief) Validate() error {
 	return nil
 }
 
-// InterfaceBrief is a brief decription of a network interface.
-type InterfaceBrief struct {
+// Interface is a brief decription of a network interface.
+type Interface struct {
 	// VendorDesc is the name a vendor gives the interface, like ge-10/2/1.
 	VendorDesc string
 	// Blade is the blade in the routing chassis.
@@ -120,51 +119,51 @@ type InterfaceBrief struct {
 	// MTU is the maximum amount of bytes that can be sent on the frame.
 	MTU int
 	// Speed is the interface's speed in bits per second.
-  	Speed int
+	Speed int
 
-  	initCalled bool
+	initCalled bool
 }
 
-// init returns an initialized version of InterfaceBrief.
-func (i *InterfaceBrief) init() {
-		i.Blade = -1
-		i.Pic = -1
-		i.Port = -1
-		i.MTU = -1
-		i.Speed = -1
-		i.initCalled = true
+// init initializes Interface.
+func (i *Interface) init() {
+	i.Blade = -1
+	i.Pic = -1
+	i.Port = -1
+	i.MTU = -1
+	i.Speed = -1
+	i.initCalled = true
 }
 
 // Validate implements halfpike.Validator.
-func (i *InterfaceBrief) Validate() error {
+func (i *Interface) Validate() error {
 	if !i.initCalled {
-		return fmt.Errorf("an InterfaceBrief did not have init() called before storing data")
+		return fmt.Errorf("an Interface did not have init() called before storing data")
 	}
 
 	if i.VendorDesc == "" {
-		return fmt.Errorf("an InterfaceBrief did not have VendorDesc assigned")
+		return fmt.Errorf("an Interface did not have VendorDesc assigned")
 	}
 
 	switch -1 {
 	case i.Blade:
-		return fmt.Errorf("InterfaceBrief(%s): Blade was not set", i.VendorDesc)
+		return fmt.Errorf("Interface(%s): Blade was not set", i.VendorDesc)
 	case i.Pic:
-		return fmt.Errorf("InterfaceBrief(%s): Pic was not set", i.VendorDesc)
+		return fmt.Errorf("Interface(%s): Pic was not set", i.VendorDesc)
 	case i.Port:
-		return fmt.Errorf("InterfaceBrief(%s): Port was not set", i.VendorDesc)
+		return fmt.Errorf("Interface(%s): Port was not set", i.VendorDesc)
 	case i.MTU:
-		return fmt.Errorf("InterfaceBrief(%s): MTU was not set", i.VendorDesc)
+		return fmt.Errorf("Interface(%s): MTU was not set", i.VendorDesc)
 	case i.Speed:
-		return fmt.Errorf("InterfaceBrief(%s): Speed was not set", i.VendorDesc)
+		return fmt.Errorf("Interface(%s): Speed was not set", i.VendorDesc)
 	}
 
 	switch {
 	case i.State == IStateUnknown:
-		return fmt.Errorf("InterfaceBrief(%s): State was not set", i.VendorDesc)
+		return fmt.Errorf("Interface(%s): State was not set", i.VendorDesc)
 	case i.Status == IStatUnknown:
-		return fmt.Errorf("InterfaceBrief(%s): Status was not set", i.VendorDesc)
+		return fmt.Errorf("Interface(%s): Status was not set", i.VendorDesc)
 	case i.LinkLevel == LLUnknown:
-		return fmt.Errorf("InterfaceBrief(%s): LinkLevel was not set", i.VendorDesc)
+		return fmt.Errorf("Interface(%s): LinkLevel was not set", i.VendorDesc)
 	}
 
 	return nil
@@ -172,10 +171,10 @@ func (i *InterfaceBrief) Validate() error {
 
 type interBriefParsers struct {
 	parser *Parser
-	inters InterfacesBrief
+	inters Interfaces
 }
 
-func (i *interBriefParsers) errorf(s string, a ...interface{}) ParseFn{
+func (i *interBriefParsers) errorf(s string, a ...interface{}) ParseFn {
 	if len(i.inters) > 0 {
 		v := i.current().VendorDesc
 		if v != "" {
@@ -198,7 +197,7 @@ func (i *interBriefParsers) findInterface(ctx context.Context, p *Parser) ParseF
 	// have the minimum values we need.
 	// p.FindItemsRegexStart() can be used if you require more
 	// complex matching of static values.
-	_, err := p.FindStart(phyStart) 
+	_, err := p.FindStart(phyStart)
 	if err != nil {
 		if len(i.inters) == 0 {
 			return i.errorf("could not find a physical interface in the output")
@@ -206,7 +205,7 @@ func (i *interBriefParsers) findInterface(ctx context.Context, p *Parser) ParseF
 		return nil
 	}
 	// Create our new entry.
-	inter := &InterfaceBrief{}
+	inter := &Interface{}
 	inter.init()
 	i.inters = append(i.inters, inter)
 
@@ -215,12 +214,12 @@ func (i *interBriefParsers) findInterface(ctx context.Context, p *Parser) ParseF
 }
 
 var toInterState = map[string]InterState{
-	"Enabled,": IStateEnabled,
+	"Enabled,":  IStateEnabled,
 	"Disabled,": IStateDisabled,
 }
 
 var toStatus = map[string]InterStatus{
-	"Up": IStatUp,
+	"Up":   IStatUp,
 	"Down": IStatDown,
 }
 
@@ -228,18 +227,17 @@ var toStatus = map[string]InterStatus{
 func (i *interBriefParsers) phyInter(ctx context.Context, p *Parser) ParseFn {
 	// These are indexes within the line where our values are.
 	const (
-		name = 2
-		stateIndex = 3
+		name        = 2
+		stateIndex  = 3
 		statusIndex = 7
 	)
 	line := p.Next() // fetches the next line of ouput.
 
-	i.current().VendorDesc = line.Items[name].Val // this will be ge-3/0/2 in the example above
+	i.current().VendorDesc = line.Items[name].Val[:len(line.Items[name].Val)-1] // this will be ge-3/0/2 in the example above
 	if err := i.interNameSplit(line.Items[name].Val); err != nil {
 		return i.errorf("error parsing the name into blade/pic/port: %s", err)
-		return nil
 	}
-	
+
 	state, ok := toInterState[line.Items[stateIndex].Val]
 	if !ok {
 		return i.errorf("error parsing the interface state, got %s is not a known state", line.Items[stateIndex].Val)
@@ -255,8 +253,8 @@ func (i *interBriefParsers) phyInter(ctx context.Context, p *Parser) ParseFn {
 }
 
 var toLinkLevel = map[string]LinkLevel{
-	"52,": LL52,
-	"ppp,": LLPPP,
+	"52,":       LL52,
+	"ppp,":      LLPPP,
 	"ethernet,": LLEthernet,
 }
 
@@ -264,8 +262,8 @@ var toLinkLevel = map[string]LinkLevel{
 func (i *interBriefParsers) findLinkLevel(ctx context.Context, p *Parser) ParseFn {
 	const (
 		llTypeIndex = 2
-		mtuIndex = 4
-		speedIndex = 6
+		mtuIndex    = 4
+		speedIndex  = 6
 	)
 
 	line, until, err := p.FindUntil([]string{"Link-level", "type:", Skip, "MTU:", Skip, "Speed:", Skip}, phyStart)
@@ -301,7 +299,6 @@ func (i *interBriefParsers) record(ctx context.Context, p *Parser) ParseFn {
 	return i.findInterface
 }
 
-
 // ge-3/0/2
 var interNameRE = regexp.MustCompile(`(?P<inttype>ge)-(?P<blade>\d+)/(?P<pic>\d+)/(?P<port>\d+),`)
 
@@ -312,7 +309,9 @@ func (i *interBriefParsers) interNameSplit(s string) error {
 	}
 
 	for k, v := range matches {
-		if k == "inttype" {continue}
+		if k == "inttype" {
+			continue
+		}
 		in, err := strconv.Atoi(v)
 		if err != nil {
 			return fmt.Errorf("could not convert value for %s(%s) to an integer", k, v)
@@ -355,7 +354,7 @@ func (i *interBriefParsers) speedSplit(s string) error {
 	return nil
 }
 
-func (i *interBriefParsers) current() *InterfaceBrief {
+func (i *interBriefParsers) current() *Interface {
 	if len(i.inters) == 0 {
 		return nil
 	}

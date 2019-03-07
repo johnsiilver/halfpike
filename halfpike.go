@@ -54,39 +54,12 @@ const (
 
 // Line represents a line in the input.
 type Line struct {
-	Items   []Item
+	// Items are the Item(s) that make up a line.
+	Items []Item
+	// LineNum is the line number in the content this represents, starting at 1.
 	LineNum int
-	Raw     string
-	pos     int
-}
-
-// Next returns the next item in the line. If we have already reached the end of the line,
-// this will return the last item again.
-func (l Line) Next() Item {
-	if l.pos >= len(l.Items) {
-		return l.Items[l.pos-1]
-	}
-
-	item := l.Items[l.pos]
-	l.pos++
-	return item
-}
-
-// Backup takes the position back one item. If this would go into a negative position it panics.
-func (l Line) Backup() Item {
-	l.pos--
-	if l.pos < 0 {
-		panic("Line.Backup() cannot go beyond the first Item")
-	}
-	return l.Items[l.pos]
-}
-
-// Peek returns the next Item without changing the position. If already at EOL OR EOF, this will
-// that Item again.
-func (l Line) Peek() Item {
-	item := l.Next()
-	l.Backup()
-	return item
+	// Raw is the actual raw string that made up the line.
+	Raw string
 }
 
 var itemZero = Item{}
@@ -525,9 +498,10 @@ func (p *Parser) FindStart(find []string) (Line, error) {
 	panic("FindStart() escaped for loop without returning")
 }
 
-// FindUntil searches for a Line that matches "find" until it finds a line that matches "until". This is useful
-// for searching for a sub entry of some type of record until you hit the next recordf. If until is reached, we Backup()
-// before the until Line so that the .Next() call will return it.  "found" is only returned if "find" matches
+// FindUntil searches a Line until it matches "find", matches "until" or reaches the EOF. If "find" is
+// matched, we return the Line. If "until" is matched, we call .Backup() and return true. This
+// is useful when you wish to discover a line that represent a sub-entry of a record (find) but wish to
+// stop searching if you find the beginning of the next record (until).
 func (p *Parser) FindUntil(find []string, until []string) (matchFound Line, untilFound bool, err error) {
 	for line := p.Next(); true; line = p.Next() {
 		if p.IsAtStart(line, find) {

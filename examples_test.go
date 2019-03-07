@@ -2,11 +2,11 @@ package halfpike
 
 import (
 	"context"
-	"net"
-	"time"
-	"strings"
 	"fmt"
+	"net"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/kylelemons/godebug/pretty"
 )
@@ -33,7 +33,7 @@ func Example_long() {
 	}
 
 	// Because we pass in a slice, we have to do a reassign to get the changed value.
-	neighbors = p.Validator.(BGPNeighbors) 
+	neighbors = p.Validator.(BGPNeighbors)
 	fmt.Println(pretty.Sprint(neighbors))
 
 /* Output:
@@ -165,50 +165,50 @@ Peer: 10.10.10.6+54781 AS 22   Local: 10.10.10.5+179 AS 17
 type PeerType uint8
 
 // BGP neighbor types.
- const (
- 	// PTUnknown indicates the neighbor type is unknown.
- 	PTUnknown PeerType = 0
- 	// PTExternal indicates the neighbor is external to the router's AS.
- 	PTExternal PeerType = 1
- 	// PTInternal indicates the neighbort is intneral to the router's AS.
- 	PTInternal PeerType = 2
- )
+const (
+	// PTUnknown indicates the neighbor type is unknown.
+	PTUnknown PeerType = 0
+	// PTExternal indicates the neighbor is external to the router's AS.
+	PTExternal PeerType = 1
+	// PTInternal indicates the neighbort is intneral to the router's AS.
+	PTInternal PeerType = 2
+)
 
- type BGPState uint8
+type BGPState uint8
 
- // BGP connection states.
- const(
- 	NSUnknown BGPState = 0
- 	NSActive BGPState = 1
- 	NSConnect BGPState = 2
- 	NSEstablished BGPState = 3
- 	NSIdle BGPState = 4
- 	NSOpenConfirm BGPState = 5
- 	NSOpenSent BGPState = 6
- 	NSRRClient BGPState = 7
- )
+// BGP connection states.
+const (
+	NSUnknown     BGPState = 0
+	NSActive      BGPState = 1
+	NSConnect     BGPState = 2
+	NSEstablished BGPState = 3
+	NSIdle        BGPState = 4
+	NSOpenConfirm BGPState = 5
+	NSOpenSent    BGPState = 6
+	NSRRClient    BGPState = 7
+)
 
- type RIBState uint8
+type RIBState uint8
 
- const (
- 	RSUnknown RIBState = 0
- 	RSComplete RIBState =2
- 	RSInProgress RIBState = 3
- )
+const (
+	RSUnknown    RIBState = 0
+	RSComplete   RIBState = 2
+	RSInProgress RIBState = 3
+)
 
- type SendState uint8
+type SendState uint8
 
- const (
- 	RSSendUnknown SendState = 0
- 	RSSendSync SendState = 1
- 	RSSendNotSync SendState = 2
- 	RSSendNoAdvertise SendState = 3
- )
+const (
+	RSSendUnknown     SendState = 0
+	RSSendSync        SendState = 1
+	RSSendNotSync     SendState = 2
+	RSSendNoAdvertise SendState = 3
+)
 
- // BGPNeighbors is a collection of BGPNeighbors for a router.
+// BGPNeighbors is a collection of BGPNeighbors for a router.
 type BGPNeighbors []*BGPNeighbor
 
-// Vaildate implements Validator.Validate(). 
+// Vaildate implements Validator.Validate().
 func (b BGPNeighbors) Validate() error {
 	for _, v := range b {
 		if err := v.Validate(); err != nil {
@@ -245,7 +245,7 @@ type BGPNeighbor struct {
 	// PeerID is the ID the peer uses to identify itself.
 	PeerID net.IP
 	// LocalID is the ID the local router uses to identify itself.
-	LocalID net.IP
+	LocalID   net.IP
 	InetStats map[int]*InetStats
 
 	initCalled bool
@@ -257,12 +257,12 @@ func (b *BGPNeighbor) init() {
 	b.LocalAS, b.PeerAS = -1, -1
 }
 
-// Vaildate implements Validator.Validate(). 
+// Vaildate implements Validator.Validate().
 func (b *BGPNeighbor) Validate() error {
 	if !b.initCalled {
 		return fmt.Errorf("internal error: BGPNeighbor.init() was not called")
-	} 
-	
+	}
+
 	switch {
 	case b.PeerIP == nil:
 		return fmt.Errorf("PeerIP was nil")
@@ -309,13 +309,13 @@ func (b *BGPNeighbor) Validate() error {
 
 // InetStats contains information about the route table.
 type InetStats struct {
-	ID int
-	Bit int
-	RIBState RIBState
-	SendState SendState
-	ActivePrefixes int
-	RecvPrefixes int
-	AcceptPrefixes int
+	ID                 int
+	Bit                int
+	RIBState           RIBState
+	SendState          SendState
+	ActivePrefixes     int
+	RecvPrefixes       int
+	AcceptPrefixes     int
 	SurpressedPrefixes int
 	AdvertisedPrefixes int
 }
@@ -353,7 +353,7 @@ func (b *InetStats) Validate() error {
 // PeerParse is a collection of ParseFn for parsing top level entries in "show bgp neigbhors".
 type PeerParser struct {
 	parser *Parser
-	peers BGPNeighbors
+	peers  BGPNeighbors
 }
 
 // lastPeer returns the last *BgPNeighbor added to our *BGPNeighbors slice.
@@ -375,13 +375,13 @@ func (pe *PeerParser) errorf(s string, a ...interface{}) ParseFn {
 
 var peerRecStart = []string{"Peer:", Skip, "AS", Skip, "Local:", Skip, "AS", Skip}
 
-// Peer: 10.10.10.2+179 AS 22     Local: 10.10.10.1+65406 AS 17 
+// Peer: 10.10.10.2+179 AS 22     Local: 10.10.10.1+65406 AS 17
 func (pe *PeerParser) FindPeer(ctx context.Context, p *Parser) ParseFn {
 	const (
-		peerIPPort = 1
-		peerASNum = 3 
+		peerIPPort  = 1
+		peerASNum   = 3
 		localIPPort = 5
-		localASNum = 7
+		localASNum  = 7
 	)
 	pe.peers = p.Validator.(BGPNeighbors)
 	pe.parser = p
@@ -409,7 +409,7 @@ func (pe *PeerParser) FindPeer(ctx context.Context, p *Parser) ParseFn {
 	rec.PeerPort = uint32(port)
 
 	// Get peer's AS.
-	as, err :=line.Items[peerASNum].ToInt()
+	as, err := line.Items[peerASNum].ToInt()
 	if err != nil {
 		return p.Errorf("could not retrieve the peer AS num from: %#+v", line)
 	}
@@ -434,32 +434,32 @@ func (pe *PeerParser) FindPeer(ctx context.Context, p *Parser) ParseFn {
 	return pe.typeState
 }
 
-var toPeerType = map[string]PeerType {
+var toPeerType = map[string]PeerType{
 	"Internal": PTInternal,
 	"External": PTExternal,
 }
 
 var toState = map[string]BGPState{
-	"Active": NSActive,
- 	"Connect": NSConnect,
- 	"Established": NSEstablished,
- 	"Idle": NSIdle,
- 	"OpenConfirm": NSOpenConfirm,
- 	"OpenSent": NSOpenSent,
- 	"route reflector client": NSRRClient,
+	"Active":                 NSActive,
+	"Connect":                NSConnect,
+	"Established":            NSEstablished,
+	"Idle":                   NSIdle,
+	"OpenConfirm":            NSOpenConfirm,
+	"OpenSent":               NSOpenSent,
+	"route reflector client": NSRRClient,
 }
 
 // Type: External    State: Established    Flags: <Sync>
 func (pe *PeerParser) typeState(ctx context.Context, p *Parser) ParseFn {
 	const (
 		peerType = 1
-		state = 3
+		state    = 3
 	)
 
 	line := p.Next()
 
 	rec := pe.lastPeer()
-	
+
 	if !p.IsAtStart(line, []string{"Type:", Skip, "State:", Skip}) {
 		return pe.errorf("did not have the expected 'Type' and 'State' declarations following peer line")
 	}
@@ -516,7 +516,7 @@ func (pe *PeerParser) holdTimePref(ctx context.Context, p *Parser) ParseFn {
 
 	ht, err := line.Items[hold].ToInt()
 	if err != nil {
-		return pe.errorf("Holdtime was not an integer, was %s",line.Items[hold].Val)
+		return pe.errorf("Holdtime was not an integer, was %s", line.Items[hold].Val)
 	}
 	prefVal, err := line.Items[pref].ToInt()
 	if err != nil {
@@ -532,7 +532,7 @@ func (pe *PeerParser) holdTimePref(ctx context.Context, p *Parser) ParseFn {
 // Peer ID: 10.10.10.6       Local ID: 10.10.10.1       Active Holdtime: 90
 func (pe *PeerParser) peerIDLocalID(ctx context.Context, p *Parser) ParseFn {
 	const (
-		peer = 2
+		peer  = 2
 		local = 5
 	)
 
@@ -555,18 +555,18 @@ func (pe *PeerParser) peerIDLocalID(ctx context.Context, p *Parser) ParseFn {
 	}
 	rec.PeerID = pid
 	rec.LocalID = loc
-	return pe.findTableStats	
+	return pe.findTableStats
 }
 
 // Table inet.0 Bit: 10000
-func (pe *PeerParser) findTableStats(ctx context.Context, p *Parser) ParseFn { 
+func (pe *PeerParser) findTableStats(ctx context.Context, p *Parser) ParseFn {
 	p.Validator = pe.peers
 
 	_, until, err := p.FindUntil([]string{"Table", Skip, "Bit:", Skip}, peerRecStart)
 	if err != nil {
 		return nil
 	}
-	if until{
+	if until {
 		return pe.FindPeer
 	}
 	p.Backup()
@@ -584,10 +584,10 @@ Table inet.0 Bit: 10000
     Suppressed due to damping:    0
     Advertised prefixes:          0
 */
-type tableStats struct{
-	peer *PeerParser
+type tableStats struct {
+	peer  *PeerParser
 	stats *InetStats
-	rec *BGPNeighbor
+	rec   *BGPNeighbor
 }
 
 func (t *tableStats) errorf(s string, a ...interface{}) ParseFn {
@@ -601,7 +601,7 @@ func (t *tableStats) errorf(s string, a ...interface{}) ParseFn {
 func (t *tableStats) start(ctx context.Context, p *Parser) ParseFn {
 	const (
 		table = 1
-		bit = 3
+		bit   = 3
 	)
 	t.rec = t.peer.lastPeer()
 
@@ -622,18 +622,17 @@ func (t *tableStats) start(ctx context.Context, p *Parser) ParseFn {
 		return nil
 	}
 	t.stats = &InetStats{
-		ID: i,
+		ID:  i,
 		Bit: b,
 	}
 
 	return t.ribState
 }
 
-var toRIBState = map[string]RIBState {
+var toRIBState = map[string]RIBState{
 	"restart is complete": RSComplete,
-	"estart in progress": RSInProgress, 
+	"estart in progress":  RSInProgress,
 }
-
 
 // RIB State: BGP restart is complete
 func (t *tableStats) ribState(ctx context.Context, p *Parser) ParseFn {
@@ -656,10 +655,10 @@ func (t *tableStats) ribState(ctx context.Context, p *Parser) ParseFn {
 	return t.sendState
 }
 
-var toSendState = map[string]SendState {
-	"in sync": RSSendSync, 
- 	"not in sync": RSSendNotSync, 
- 	"not advertising": RSSendNoAdvertise, 
+var toSendState = map[string]SendState{
+	"in sync":         RSSendSync,
+	"not in sync":     RSSendNotSync,
+	"not advertising": RSSendNoAdvertise,
 }
 
 // Send state: in sync
@@ -751,10 +750,10 @@ func (t *tableStats) intKeyVal(name []string, p *Parser) (int, error) {
 	item := line.Items[len(name)-1]
 	v, err := item.ToInt()
 	if err != nil {
-		return 0,  fmt.Errorf("did not have %s value as a int, had %v", strings.Join(name, " "), item.Val)
+		return 0, fmt.Errorf("did not have %s value as a int, had %v", strings.Join(name, " "), item.Val)
 	}
 	return v, nil
-} 
+}
 
 func ipPort(s string) (net.IP, int, error) {
 	sp := strings.Split(s, `+`)
@@ -771,60 +770,3 @@ func ipPort(s string) (net.IP, int, error) {
 	}
 	return ip, port, nil
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
