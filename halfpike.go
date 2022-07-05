@@ -141,6 +141,8 @@ func ItemJoin(line Line, start, end int) string {
 
 // Lexer holds the state of the scanner.
 type lexer struct {
+	ctx context.Context
+
 	input   string    // the string being scanned.
 	start   int       // start position of this item.
 	pos     int       // current position in the input.
@@ -150,12 +152,12 @@ type lexer struct {
 }
 
 // newLexer is the constructor for Lexer.
-func newLexer(s string, start stateFn) *lexer {
+func newLexer(ctx context.Context, s string, start stateFn) *lexer {
 	if start == nil {
 		panic("start cannot be nil")
 	}
 
-	return &lexer{input: s, items: make(chan Item, 10), startFn: start}
+	return &lexer{ctx: ctx, input: s, items: make(chan Item, 10), startFn: start}
 }
 
 // Reset resets the Lexer lex argument "s".
@@ -184,9 +186,19 @@ func (l *lexer) emit(t ItemType, ri ...rawInfo) ItemType {
 	default:
 		item = Item{Type: t, Val: l.input[l.start:l.pos]}
 	}
-	l.items <- item
+	l.addItemsChannel(item)
 	l.start = l.pos
 	return t
+}
+
+func (l *lexer) addItemsChannel(item Item) {
+	select {
+	case <-l.ctx.Done():
+		// This simply causes the lexer to continue and finish off the content without
+		// blocking on any channel.
+		return
+	case l.items <- item:
+	}
 }
 
 // current shows what is currently stored in our buffer to be sent on the next emit().
@@ -330,6 +342,8 @@ func Parse(ctx context.Context, content string, parseObject ParseObject) error {
 	}
 	go p.lex.run()
 
+	defer p.cancel()
+
 	for state := parseObject.Start; state != nil; {
 		state = state(ctx, p)
 	}
@@ -346,8 +360,13 @@ func Parse(ctx context.Context, content string, parseObject ParseObject) error {
 
 // Parser parses items coming from the Lexer and puts the values into *struct that must satisfy the Validator interface.
 // It provides helper methods for recording an Item directory to a field handling text conversions.  More complex types
-// such as conversion to time.Time or custom objects are not covered.
+// such as conversion to time.Time or custom objects are not covered. The Parser is created internally
+// when calling the Parse() function.
 type Parser struct {
+	// ctx is simply used for cancelation and is not derived from anywhere.
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	lines []Line
 	pos   int
 	recv  chan Item
@@ -359,17 +378,20 @@ type Parser struct {
 
 // newParser is the constructor for Parser.
 func newParser(input string) (*Parser, error) {
-	l := newLexer(input, untilSpace)
+	l := newLexer(context.Background(), input, untilSpace)
+
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Parser{
-		lex:  l,
-		recv: l.items,
+		ctx:    ctx,
+		cancel: cancel,
+		lex:    l,
+		recv:   l.items,
 	}, nil
 }
 
-// TODO(johnsiilver): Implement this or we are going to leak goroutines.
-// TODO(johnsiilver): Update the reset to also shut down the lexer so that we stop leaking.
+// Close closes the Parser. This must be called to prevent a goroutine leak.
 func (p *Parser) Close() {
-
+	p.cancel()
 }
 
 func (p *Parser) pull() Line {

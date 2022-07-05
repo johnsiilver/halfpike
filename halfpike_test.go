@@ -1,6 +1,7 @@
 package halfpike
 
 import (
+	"context"
 	"testing"
 
 	"github.com/kylelemons/godebug/pretty"
@@ -33,7 +34,7 @@ func TestLexer(t *testing.T) {
 		{Type: ItemEOF, lineNum: 3, raw: "\x01"},
 	}
 
-	l := newLexer(str, untilSpace)
+	l := newLexer(context.Background(), str, untilSpace)
 	go l.run()
 
 	got := []Item{}
