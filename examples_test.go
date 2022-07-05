@@ -546,6 +546,12 @@ type InetStats struct {
 	AdvertisedPrefixes int
 }
 
+func NewInetStats() *InetStats {
+	i := &InetStats{}
+	i.init()
+	return i
+}
+
 func (b *InetStats) init() {
 	b.Bit = -1
 	b.ActivePrefixes = -1
@@ -620,10 +626,11 @@ func (t *tableStats) start(ctx context.Context, p *Parser) ParseFn {
 	if err != nil {
 		return t.errorf("had Table entry with bits id that wasn't an integer: %s", line.Items[bit].Val)
 	}
-	t.stats = &InetStats{
-		ID:  i,
-		Bit: b,
-	}
+	is := NewInetStats()
+
+	is.ID = i
+	is.Bit = b
+	t.stats = is
 
 	return t.ribState
 }
