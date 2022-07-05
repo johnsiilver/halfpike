@@ -1,12 +1,19 @@
 # HalfPike - The Helpful Lexing/Parsing module
 
+![gopherfs logo-sm](https://raw.githubusercontent.com/gopherfs/fs/main/cover.png)
+
+[![GoDoc](https://godoc.org/github.com/gopherfs/fs?status.svg)](https://godoc.org/github.com/gopherfs/fs)
+[![Go Report Card](https://goreportcard.com/report/github.com/johnsiilver/halfpike)](https://goreportcard.com/report/github.com/johnsiilver/halfpike)
+
+Since you've made it this far, why don't you hit that :star: up in the right corner.
+
 ## Introduction
 
-Halfpike provides a package that handles lexing for you so that you can parse textual output using a set of parsing tools we also provide. This is how a language compiler turns your text into something it can use.
+Halfpike provides a package that handles lexing for you so that you can parse textual output using a set of parsing tools we provide. This is how a language compiler turns your text into something it can use.
 
 This technique is much less error prone than trying to use Regexes.
 
-This can be used to convert textual output from something into structured output software can use easily. I've used this to parse router output into structs and protocol buffers as well as use it to convert a language I wrote into data structures I could use in Go.
+This can be used to convert textual output into structured output software can use. This has been used to parse router output into structs and protocol buffers and to convert an IDL language into data structures.
 
 ## History
 
@@ -117,7 +124,7 @@ Executing our parser against our file content is simple:
 	}
 ```
 
-You can give this a try at: https://go.dev/play/p/bCtHKu2ZyYL
+You can give this a try at: https://go.dev/play/p/iFGRIM3Ho_z
 
 This is a simple example of parsing a file. You can easily see this takes much more work than simply using Regexes. And for something this simple, it would be crazy to use HalfPike. But if you have a more complicated input to deconstruct that can't have errors in the parsing, HalfPike can be helpful, if somewhat verbose.
 
@@ -129,7 +136,9 @@ The above section simply covers the basics. We offer more advanced tools such as
 
 This will search for a line with a list of Item values that a line must match. This allows you to skip over lines you don't care about (often handy if you need just a subset of information). 
 
-We allow you to use the `Skip` value to skip over Items in a line that don't need to match.  Say you were looking through output of time values for a line that had "Time Now: 12:53:04 UTC". Clearly you cannot match on "12:53:04", as it will change every time you run the output. So you can provide: `[]string{"Time", "Now:", halfpike.Skip, "UTC"}`.
+We allow you to use the `Skip` value to skip over Items in a line that don't need to match.  
+
+Say you were looking through output of time values for a line that had "Time Now: 12:53:04 UTC". Clearly you cannot match on "12:53:04", as it will change every time you run the output. So you can provide: `[]string{"Time", "Now:", halfpike.Skip, "UTC"}`.
 
 
 ### `Parser.FindUntil()`
