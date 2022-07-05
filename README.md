@@ -1,8 +1,8 @@
-# HalfPike - The helpful lexing module
+# HalfPike - The Helpful Lexing/Parsing module
 
 ## Introduction
 
-Halfpike provides a lexing package that handles lexing for you so that you can parse textual output. This is how a language compiler turns your text into something it can use.
+Halfpike provides a package that handles lexing for you so that you can parse textual output using a set of parsing tools we also provide. This is how a language compiler turns your text into something it can use.
 
 This technique is much less error prone than trying to use Regexes.
 
@@ -141,6 +141,8 @@ In the same veing as `FindStart()`, this function is useful for searching throug
 Checks to see if a line starts with some items.
 
 ### `Parser.FindREStart()`
+
+Like `Parser.FindStart()` but with Regexes!
 
 ### `Parser.IsREStart()`
 
