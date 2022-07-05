@@ -16,6 +16,7 @@ package halfpike
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -62,8 +63,6 @@ type Line struct {
 	Raw string
 }
 
-var itemZero = Item{}
-
 // Item represents a token created by the Lexer.
 type Item struct {
 	// Type is the type of item that is stored in .Val.
@@ -82,10 +81,7 @@ type Item struct {
 
 // IsZero indicates the Item is the zero value.
 func (i Item) IsZero() bool {
-	if i == itemZero {
-		return true
-	}
-	return false
+	return reflect.ValueOf(i).IsZero()
 }
 
 // ToInt returns the value as an int type. If the Item.Type is not ItemInt, this will panic.
@@ -117,7 +113,6 @@ func (i Item) ToFloat() (float64, error) {
 // joins all the values with a single space between them. -1 for start or end means from the absolute
 // begin or end of the line slice. This will automatically remove the carriage return or EOF items.
 func ItemJoin(line Line, start, end int) string {
-	const space = " "
 	var l Line
 
 	switch {
@@ -209,19 +204,9 @@ func (l *lexer) ignore() {
 	l.start = l.pos
 }
 
-// Backup steps back one rune. Can be called only once per call of next.
+// backup steps back one rune. Can be called only once per call of next.
 func (l *lexer) backup() {
 	l.pos -= l.width
-}
-
-// Peek returns but does not consume the next rune in the input.
-func (l *lexer) peek() rune {
-	if l.pos >= len(l.input) {
-		return rune(ItemEOL)
-	}
-	r := l.next()
-	l.backup()
-	return r
 }
 
 // next returns the next rune in the input.
@@ -262,13 +247,13 @@ func untilSpace(l *lexer) stateFn {
 			l.backup() // backup before the carriage return.
 			switch {
 			case isInt(l.current()):
-				last = l.emit(ItemInt)
+				l.emit(ItemInt)
 			case isFloat(l.current()):
-				last = l.emit(ItemFloat)
+				l.emit(ItemFloat)
 			case last == itemSpace:
 				// do nothing
 			default:
-				last = l.emit(ItemText)
+				l.emit(ItemText)
 			}
 
 			// Emit the carriage return.
@@ -278,7 +263,7 @@ func untilSpace(l *lexer) stateFn {
 
 			lineNum++
 		case r == rune(ItemEOF):
-			last = l.emit(ItemEOF, rawInfo{raw.String(), lineNum})
+			l.emit(ItemEOF, rawInfo{raw.String(), lineNum})
 			raw.Reset()
 			return nil
 		case unicode.IsSpace(r):
@@ -291,11 +276,11 @@ func untilSpace(l *lexer) stateFn {
 			l.backup() // Remove the space.
 			switch {
 			case isInt(l.current()):
-				last = l.emit(ItemInt)
+				l.emit(ItemInt)
 			case isFloat(l.current()):
-				last = l.emit(ItemFloat)
+				l.emit(ItemFloat)
 			default:
-				last = l.emit(ItemText)
+				l.emit(ItemText)
 			}
 			l.next() // Get ahead of the space
 			l.ignore()
@@ -309,18 +294,12 @@ func untilSpace(l *lexer) stateFn {
 
 func isInt(s string) bool {
 	_, err := strconv.Atoi(s)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 func isFloat(s string) bool {
 	_, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 // Validator provides methods to validate that a data type is okay.
@@ -332,13 +311,26 @@ type Validator interface {
 // ParseFn handles parsing items provided by a lexer into an object that implements the Validator interface.
 type ParseFn func(ctx context.Context, p *Parser) ParseFn
 
-// Parse begins parsing content from the underlying input to Parser. Parsing starts with the "start" ParseFn
-// until a returned ParseFn == nil. Calling p.HasError() will return an error if there was one. If err == nil,
+// ParseObject is an object that has a set of ParseFn methods, one of which is called Start()
+// and a Validate() method. It is responsible for using the output of the Parser to turn the Items
+// emitted by the lexer into structured data.
+type ParseObject interface {
+	Start(ctx context.Context, p *Parser) ParseFn
+	Validator
+}
+
+// Parse starts a lexer that being sending items to a Parser instance. The function or method represented
+// by "start" is called and passed the Parser instance to begin decoding into whatever form you want until
+// a ParseFn returns ParseFn == nil.  If err == nil,
 // the Validator object passed to Parser should have .Validate() called to ensure all data is correct.
-func Parse(ctx context.Context, p *Parser, start ParseFn) error {
+func Parse(ctx context.Context, content string, parseObject ParseObject) error {
+	p, err := newParser(content)
+	if err != nil {
+		return err
+	}
 	go p.lex.run()
 
-	for state := start; state != nil; {
+	for state := parseObject.Start; state != nil; {
 		state = state(ctx, p)
 	}
 
@@ -346,7 +338,7 @@ func Parse(ctx context.Context, p *Parser, start ParseFn) error {
 		return err
 	}
 
-	if err := p.Validator.Validate(); err != nil {
+	if err := parseObject.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -365,13 +357,12 @@ type Parser struct {
 	err       error
 }
 
-// NewParser is the constructor for Parser.
-func NewParser(input string, val Validator) (*Parser, error) {
+// newParser is the constructor for Parser.
+func newParser(input string) (*Parser, error) {
 	l := newLexer(input, untilSpace)
 	return &Parser{
-		lex:       l,
-		recv:      l.items,
-		Validator: val,
+		lex:  l,
+		recv: l.items,
 	}, nil
 }
 
@@ -417,11 +408,10 @@ func (p *Parser) Errorf(str string, args ...interface{}) ParseFn {
 }
 
 // Reset will reset the Parsers internal attributes for parsing new input "s" into "val".
-func (p *Parser) Reset(s string, val Validator) error {
+func (p *Parser) Reset(s string) error {
 	p.lex.reset(s)
 	p.lines = p.lines[:]
 	p.recv = p.lex.items
-	p.Validator = val
 
 	return nil
 }
@@ -437,10 +427,7 @@ func (p *Parser) Backup() Line {
 
 // EOF returns true if the last Item in []Item is a ItemEOF.
 func (p *Parser) EOF(line Line) bool {
-	if line.Items[len(line.Items)-1].Type == ItemEOF {
-		return true
-	}
-	return false
+	return line.Items[len(line.Items)-1].Type == ItemEOF
 }
 
 // Next moves to the next Line sent from the Lexer. That Line is returned. If we haven't
@@ -479,7 +466,7 @@ func (p *Parser) Peek() Line {
 	return i
 }
 
-// Any provides a special string for FindStart that will skip an item.
+// Skip provides a special string for FindStart that will skip an item.
 const Skip = "$.<skip>.$"
 
 // FindStart looks for an exact match of starting items in a line represented by Line

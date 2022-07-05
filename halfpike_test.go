@@ -1,8 +1,9 @@
 package halfpike
 
 import (
-	"github.com/kylelemons/godebug/pretty"
 	"testing"
+
+	"github.com/kylelemons/godebug/pretty"
 	//"fmt"
 )
 
@@ -84,7 +85,7 @@ func TestNext(t *testing.T) {
 		},
 	}
 
-	p, err := NewParser(str, nil)
+	p, err := newParser(str)
 	if err != nil {
 		panic(err)
 	}
@@ -104,7 +105,7 @@ func TestNext(t *testing.T) {
 }
 
 func TestBackup(t *testing.T) {
-	p, err := NewParser(str, nil)
+	p, err := newParser(str)
 	if err != nil {
 		panic(err)
 	}
@@ -184,7 +185,7 @@ func TestFindStart(t *testing.T) {
 	for _, test := range tests {
 		if test.reset || p == nil {
 			var err error
-			p, err = NewParser(showBGPNeighbor, nil)
+			p, err = newParser(showBGPNeighbor)
 			if err != nil {
 				panic(err)
 			}
@@ -206,7 +207,7 @@ func TestFindStart(t *testing.T) {
 }
 
 func TestFindUntil(t *testing.T) {
-	p, err := NewParser(showBGPNeighbor, nil)
+	p, err := newParser(showBGPNeighbor)
 	if err != nil {
 		panic(err)
 	}

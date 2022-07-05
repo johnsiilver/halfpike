@@ -11,21 +11,13 @@ import (
 )
 
 func TestEndToEnd(t *testing.T) {
-	neighbors := BGPNeighbors{}
-	p, err := NewParser(showBGPNeighbor, neighbors)
-	if err != nil {
+	neighbors := &BGPNeighbors{}
+
+	if err := Parse(context.Background(), showBGPNeighbor, neighbors); err != nil {
 		panic(err)
 	}
 
-	states := &PeerParser{}
-
-	if err := Parse(context.Background(), p, states.FindPeer); err != nil {
-		panic(err)
-	}
-
-	neighbors = p.Validator.(BGPNeighbors)
-
-	want := BGPNeighbors{
+	want := []*BGPNeighbor{
 		{
 			PeerIP:     net.ParseIP("10.10.10.2"),
 			PeerPort:   179,
@@ -41,7 +33,7 @@ func TestEndToEnd(t *testing.T) {
 			PeerID:     net.ParseIP("10.10.10.2"),
 			LocalID:    net.ParseIP("10.10.10.1"),
 			InetStats: map[int]*InetStats{
-				0: &InetStats{
+				0: {
 					ID:                 0,
 					Bit:                10000,
 					RIBState:           2,
@@ -70,7 +62,7 @@ func TestEndToEnd(t *testing.T) {
 			PeerID:     net.ParseIP("10.10.10.6"),
 			LocalID:    net.ParseIP("10.10.10.1"),
 			InetStats: map[int]*InetStats{
-				0: &InetStats{
+				0: {
 					ID:                 0,
 					Bit:                10000,
 					RIBState:           2,
@@ -86,7 +78,11 @@ func TestEndToEnd(t *testing.T) {
 		},
 	}
 
-	if diff := pretty.Compare(want, neighbors); diff != "" {
+	cmp := pretty.Config{
+		TrackCycles: true,
+	}
+
+	if diff := cmp.Compare(want, neighbors.Peers); diff != "" {
 		t.Errorf("TestEndToEnd: -want/+got:\n%s", diff)
 	}
 }
