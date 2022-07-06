@@ -1,7 +1,5 @@
 # HalfPike - The Helpful Lexing/Parsing module
 
-![gopherfs logo-sm](https://raw.githubusercontent.com/gopherfs/fs/main/cover.png)
-
 [![GoDoc](https://godoc.org/github.com/gopherfs/fs?status.svg)](https://godoc.org/github.com/gopherfs/fs)
 [![Go Report Card](https://goreportcard.com/report/github.com/johnsiilver/halfpike)](https://goreportcard.com/report/github.com/johnsiilver/halfpike)
 
