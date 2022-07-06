@@ -5,6 +5,7 @@ package line
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"reflect"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"unicode"
 )
+
+//go:generate stringer -type=ItemType
 
 // ItemType describes the type of item being emitted by the Lexer. The numeric values may change
 // between versions, so they cannot be recorded to disk and relied upon.
@@ -208,8 +211,6 @@ func ItemJoin(items ...Item) string {
 
 // Lexer creates a new lexer for the line that can emit tokens.
 type Lexer struct {
-	ec rune
-
 	index int
 	items []Item
 }
@@ -366,4 +367,203 @@ func (l *Lexer) Range(ctx context.Context) chan Item {
 	}()
 
 	return ch
+}
+
+// SkipAllSpaces skips over any space character (\n, ' ', \t, ...).
+func SkipAllSpaces(l *Lexer) {
+	for {
+		r := l.Next()
+		switch r.Type {
+		case ItemSpace:
+			continue
+		}
+		break
+	}
+	l.Backup()
+}
+
+// Skip skips over any set of strings.
+func Skip(strs []string, l *Lexer) {
+	for {
+		cont := false
+		i := l.Next()
+		for _, m := range strs {
+			if i.Val == m {
+				cont = true
+				break
+			}
+		}
+		if !cont {
+			break
+		}
+	}
+	l.Backup()
+}
+
+// DecodeList can be used to decode a list of items, such as  ["hello", "I", "must", "be", "going"].
+// It can handle escapes for your entry quotes, so if you use "entry", you can do "entr\"y".
+// It will handle spaces around your entry separators, so ["entry", "entry"] and ["entry" , "entry"]
+// are both tolerated, as well as spaces like [ "entry" ]. You can even do ["entry",].
+// The big limitations are that I only support single character constraints and separators. So
+// you can't do {{"entry"}} or [''entry''] types of lists.
+type DecodeList struct {
+	// LeftConstraint is the rune that indicates the beginning of the list, usually {, [, { .
+	LeftConstraint string
+	// RightConstraint is the rune that indicates the end of the list, usually }, ], } .
+	RightConstraint string
+
+	// Separator is the string that indicates separation between items. The separator
+	// cannot be a space character.
+	Separator string
+
+	// EntryQuote indicates if the items are in quotes and if so, what the quote type is.
+	// Must be either ' or ""
+	EntryQuote string
+
+	// EscapeCharater indicates the escape charater for quotes, if there is one.
+	EscapeCharacter string
+
+	results []string
+}
+
+func (d *DecodeList) setup() error {
+	d.results = nil
+
+	if d.LeftConstraint == "" {
+		return errors.New(".LeftConstraint cannot be empty")
+	}
+	if d.RightConstraint == "" {
+		return errors.New(".RightConstraint cannot be empty")
+	}
+	if len(d.Separator) != 1 {
+		return errors.New(".Separator cannot be empty or more than 1 character")
+	}
+	if unicode.IsSpace([]rune(d.Separator)[0]) {
+		return errors.New(".Separator cannot be a space character")
+	}
+	if d.EntryQuote == "" {
+		return errors.New(`.EntryQuote must be " or '`)
+	}
+	if d.EntryQuote != `"` && d.EntryQuote != `'` {
+		return errors.New(`.EntryQuote must be " or '`)
+	}
+	return nil
+}
+
+func (d *DecodeList) Decode(l *Lexer) (items []string, err error) {
+	if err := d.setup(); err != nil {
+		return nil, err
+	}
+
+	foundLeftConstraint := false
+	foundRightConstraint := false
+	inQuote := false
+	lc := []rune(d.LeftConstraint)[0]
+	rc := []rune(d.RightConstraint)[0]
+	sep := []rune(d.Separator)[0]
+	q := []rune(d.EntryQuote)[0]
+	var escape rune
+	if d.EscapeCharacter != "" {
+		escape = []rune(d.EscapeCharacter)[0]
+	}
+
+	var entry strings.Builder
+	read := 0
+	var last rune
+	var lastNonSpace rune
+
+	for {
+		if foundRightConstraint {
+			return d.results, nil
+		}
+		i := l.Next()
+		switch i.Type {
+		case ItemEOF, ItemEOL:
+			return nil, fmt.Errorf("list did not have ending character")
+		}
+
+		reader := strings.NewReader(i.Val)
+
+		for reader.Len() > 0 {
+			err := func() error {
+				r, _, _ := reader.ReadRune()
+				defer func() {
+					last = r
+					if !unicode.IsSpace(r) {
+						lastNonSpace = r
+					}
+				}()
+
+				read++
+				if read == 2 {
+					if !foundLeftConstraint {
+						return fmt.Errorf("list should receive first character %q, but got '%c'", d.LeftConstraint, r)
+					}
+				}
+				switch {
+				case r == lc:
+					if foundLeftConstraint && !inQuote {
+						return fmt.Errorf("found the two %q in the list", d.LeftConstraint)
+					}
+					if inQuote {
+						entry.WriteRune(r)
+						return nil
+					}
+					foundLeftConstraint = true
+					return nil
+				case unicode.IsSpace(r):
+					if inQuote {
+						entry.WriteRune(r)
+						return nil
+					}
+					return nil
+				case r == q:
+					if escape != 0 && last == escape {
+						entry.WriteRune(r)
+						return nil
+					}
+					if inQuote {
+						d.results = append(d.results, entry.String())
+						entry.Reset()
+					}
+					inQuote = !inQuote
+					return nil
+				case r == sep:
+					if inQuote {
+						entry.WriteRune(r)
+						return nil
+					}
+					if lastNonSpace == q {
+						return nil
+					}
+					if unicode.IsSpace(last) {
+						if lastNonSpace == q {
+							return nil
+						}
+					}
+					return fmt.Errorf("found list entry separator(%s) in a weird place", d.EntryQuote)
+				case r == rc:
+					if read == 1 {
+						return fmt.Errorf("the list close character(%s) cannot be the first character in a list", d.RightConstraint)
+					}
+					if inQuote {
+						entry.WriteRune(r)
+						return nil
+					}
+					if reader.Len() > 0 {
+						x, _, _ := reader.ReadRune()
+						return fmt.Errorf("cannot close a list with %s", string([]rune{r, x}))
+					}
+					foundRightConstraint = true
+					return nil
+				default:
+					entry.WriteRune(r)
+					return nil
+				}
+			}()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 }

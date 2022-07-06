@@ -1,6 +1,7 @@
 package line
 
 import (
+	"log"
 	"testing"
 
 	"github.com/kylelemons/godebug/pretty"
@@ -64,6 +65,108 @@ func TestLexer(t *testing.T) {
 
 		if diff := pretty.Compare(test.want, lex.items); diff != "" {
 			t.Errorf("TestLexer: -want/+got:\n%s", diff)
+		}
+	}
+}
+
+func TestDecodeList(t *testing.T) {
+	baseDL := DecodeList{LeftConstraint: "[", RightConstraint: "]", Separator: ",", EntryQuote: `"`}
+
+	tests := []struct {
+		desc string
+		dl   DecodeList
+		line string
+		want []string
+		err  bool
+	}{
+		{
+			desc: "No left constraint",
+			dl:   DecodeList{RightConstraint: "]", Separator: ",", EntryQuote: `"`},
+			line: `[ "hello", "how", "are", "you" ]`,
+			err:  true,
+		},
+		{
+			desc: "No right constraint",
+			dl:   DecodeList{LeftConstraint: "[", Separator: ",", EntryQuote: `"`},
+			line: `[ "hello", "how", "are", "you" ]`,
+			err:  true,
+		},
+		{
+			desc: "No separator",
+			dl:   DecodeList{LeftConstraint: "[", RightConstraint: "]", EntryQuote: `"`},
+			line: `[ "hello", "how", "are", "you" ]`,
+			err:  true,
+		},
+		{
+			desc: "No entry quote",
+			dl:   DecodeList{LeftConstraint: "[", RightConstraint: "]", Separator: ","},
+			line: `[ "hello", "how", "are", "you" ]`,
+			err:  true,
+		},
+		{
+			dl:   baseDL,
+			line: `[ "hello", "how", "are", "you" ]`,
+			want: []string{"hello", "how", "are", "you"},
+		},
+
+		{
+			dl:   baseDL,
+			line: `["hello", "how", "are you",]`,
+			want: []string{"hello", "how", "are you"},
+		},
+
+		{
+			dl:   baseDL,
+			line: `["hello", "how", "are you", ]`,
+			want: []string{"hello", "how", "are you"},
+		},
+
+		{
+			desc: "Using single quotes instead of my specified double quotes",
+			dl:   baseDL,
+			line: `[ 'hello', 'how', 'are', 'you' ]`,
+			want: []string{"hello", "how", "are", "you"},
+			err:  true,
+		},
+		{
+			dl:   baseDL,
+			line: `["hello","how","are you"]`,
+			want: []string{"hello", "how", "are you"},
+		},
+		{
+			dl:   baseDL,
+			line: `[ "hello" , "how" , "are you" ]`,
+			want: []string{"hello", "how", "are you"},
+		},
+	}
+
+	for _, test := range tests {
+		log.Println("\n\nNew test!!!")
+
+		l := New(test.line)
+
+		got, err := test.dl.Decode(l)
+		switch {
+		case err == nil && test.err:
+			if test.desc == "" {
+				t.Errorf("Test(%q): got err == nil, want err != nil", test.line)
+			} else {
+				t.Errorf("Test(%s): got err == nil, want err != nil", test.desc)
+			}
+			continue
+		case err != nil && !test.err:
+			if test.desc == "" {
+				t.Errorf("Test(%q): got err == %s, want err != nil", test.line, err)
+			} else {
+				t.Errorf("Test(%s): got err == %s, want err != nil", test.desc, err)
+			}
+			continue
+		case err != nil:
+			continue
+		}
+
+		if diff := pretty.Compare(test.want, got); diff != "" {
+			t.Errorf("Test(%q): -want/+got:\n%s", test.line, diff)
 		}
 	}
 }
