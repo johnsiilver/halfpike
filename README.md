@@ -177,6 +177,10 @@ It also includes an `Item` type that can answer many more questions about an `It
 * ContainsNumbers()
 * ASCIIOnly()
 
+And for something to handle reading those pesky lists of items:
+
+* DecodeList{}
+
 ## More examples
 
 The GoDoc itself contains two examples: a "short" and "long" example.  These are both based on parsing router configuration and they are complex.  

@@ -450,6 +450,8 @@ func (d *DecodeList) setup() error {
 	return nil
 }
 
+// Decode decodes a list as defined in DecodeList's attributes into items. When complete,
+// the lexer will be right past the closing RightConstraint of the list, unless there was an error.
 func (d *DecodeList) Decode(l *Lexer) (items []string, err error) {
 	if err := d.setup(); err != nil {
 		return nil, err
