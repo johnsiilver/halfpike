@@ -1,7 +1,7 @@
 # HalfPike - The Helpful Lexing/Parsing module
 
 [![GoDoc](https://godoc.org/github.com/gopherfs/fs?status.svg)](https://godoc.org/github.com/gopherfs/fs)
-[![Go Report Card](https://goreportcard.com/report/github.com/johnsiilver/halfpike)](https://goreportcard.com/report/github.com/johnsiilver/halfpike)
+[![Go Report Card](https://goreportcard.com/badge/github.com/johnsiilver/halfpike)](https://goreportcard.com/report/github.com/johnsiilver/halfpike)
 
 Since you've made it this far, why don't you hit that :star: up in the right corner.
 
