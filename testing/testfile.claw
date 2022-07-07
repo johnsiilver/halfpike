@@ -1,0 +1,26 @@
+// A comment
+// About something
+package hello // Yeah I can comment here
+
+options [NoZeroValueCompression()]
+
+import (
+	"github.com/johnsiilver/something"
+	renamed "github.com/r/something" // Yeah, yeah
+)
+
+Enum Maker uint8 {
+	Unknown @0 // [jsonName(unknown)]
+	Toyota @1
+	Ford @2
+	Tesla @3 // Fuck Elon
+}
+
+Struct Car {
+	Name string @0
+	Maker Maker @1
+	Year uint16 @2
+	Serial uint64 @3
+	PreviousVersions []Car @5
+	Image bytes @4
+}

@@ -29,6 +29,8 @@ import (
 // The last token should be ItemEOL.
 type stateFn func(l *lexer) stateFn
 
+//go:generate stringer -type=ItemType
+
 // ItemType describes the type of item being emitted by the Lexer. There are predefined ItemType(s)
 // and the rest are defined by the user.
 type ItemType int
@@ -75,7 +77,8 @@ type Item struct {
 	// lineNum is the line number this item was found on.
 	lineNum int
 
-	// raw is the raw string for a line.
+	// raw is the raw string for a line. This is temporary storage and WILL NOT
+	// SHOW UP if printing.
 	raw string
 }
 
@@ -192,6 +195,7 @@ func (l *lexer) emit(t ItemType, ri ...rawInfo) ItemType {
 }
 
 func (l *lexer) addItemsChannel(item Item) {
+	item.raw = strings.TrimLeft(item.raw, "\n")
 	select {
 	case <-l.ctx.Done():
 		// This simply causes the lexer to continue and finish off the content without
@@ -238,13 +242,13 @@ type rawInfo struct {
 	num int
 }
 
-func untilSpace(l *lexer) stateFn {
+func untilEOF(l *lexer) stateFn {
 	lineNum := 0
 	raw := strings.Builder{}
 
 	last := ItemUnknown
-	r := l.next()
-	for ; true; r = l.next() {
+
+	for r := l.next(); true; r = l.next() {
 		raw.WriteRune(r)
 
 		switch {
@@ -378,7 +382,7 @@ type Parser struct {
 
 // newParser is the constructor for Parser.
 func newParser(input string) (*Parser, error) {
-	l := newLexer(context.Background(), input, untilSpace)
+	l := newLexer(context.Background(), input, untilEOF)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Parser{
@@ -406,12 +410,13 @@ func (p *Parser) pull() Line {
 				line.LineNum = item.lineNum
 				item.raw = ""
 				item.lineNum = 0
+				fmt.Println("item.raw: ", item.raw)
 				line.Items = append(line.Items, item)
-			default:
-				line.Items = append(line.Items, item)
-				continue
+				return
 			}
-			return
+			item.raw = ""
+			fmt.Println("item.raw: ", item.raw)
+			line.Items = append(line.Items, item)
 		}
 	}()
 	return line

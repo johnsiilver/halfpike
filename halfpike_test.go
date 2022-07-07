@@ -2,6 +2,9 @@ package halfpike
 
 import (
 	"context"
+	"log"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/kylelemons/godebug/pretty"
@@ -23,7 +26,7 @@ func TestLexer(t *testing.T) {
 		{Type: ItemText, Val: "10.10.10.1+65406"},
 		{Type: ItemText, Val: "AS"},
 		{Type: ItemInt, Val: "17"},
-		{Type: ItemEOL, Val: "\n", lineNum: 1, raw: "\n\tPeer: 10.10.10.2+179 AS 22     Local: 10.10.10.1+65406 AS 17   \n"},
+		{Type: ItemEOL, Val: "\n", lineNum: 1, raw: "\tPeer: 10.10.10.2+179 AS 22     Local: 10.10.10.1+65406 AS 17   \n"},
 		{Type: ItemText, Val: "Type:"},
 		{Type: ItemText, Val: "External"},
 		{Type: ItemText, Val: "State:"},
@@ -34,7 +37,7 @@ func TestLexer(t *testing.T) {
 		{Type: ItemEOF, lineNum: 3, raw: "\x01"},
 	}
 
-	l := newLexer(context.Background(), str, untilSpace)
+	l := newLexer(context.Background(), str, untilEOF)
 	go l.run()
 
 	got := []Item{}
@@ -51,7 +54,7 @@ func TestNext(t *testing.T) {
 	want := []Line{
 		{
 			LineNum: 1,
-			Raw:     "\n\tPeer: 10.10.10.2+179 AS 22     Local: 10.10.10.1+65406 AS 17   \n",
+			Raw:     "\tPeer: 10.10.10.2+179 AS 22     Local: 10.10.10.1+65406 AS 17   \n",
 			Items: []Item{
 				{Type: ItemText, Val: "Peer:"},
 				{Type: ItemText, Val: "10.10.10.2+179"},
@@ -334,5 +337,37 @@ func TestFindUntil(t *testing.T) {
 				t.Fatalf("TestFindUntil(%s): -want/+got:\n%s", test.find, diff)
 			}
 		}
+	}
+}
+
+type startWithCarriageObj struct{}
+
+func (s *startWithCarriageObj) Start(ctx context.Context, p *Parser) ParseFn {
+	for {
+		line := p.Next()
+		if strings.HasPrefix(line.Raw, "\n") {
+			log.Printf("raw: %q", line.Raw)
+			return p.Errorf("[LineNum %d]: line.Raw begins with \\n", line.LineNum)
+		}
+		if p.EOF(line) {
+			return nil
+		}
+	}
+}
+
+func (s *startWithCarriageObj) Validate() error {
+	return nil
+}
+
+func TestRegressionRawStartsWithCarriageReturn(t *testing.T) {
+	f, err := os.ReadFile("./testing/testfile.claw")
+	if err != nil {
+		panic(err)
+	}
+
+	obj := &startWithCarriageObj{}
+
+	if err := Parse(context.Background(), string(f), obj); err != nil {
+		t.Fatalf("TestRegressionRawStartsWithCarriageReturn: got err == %s", err)
 	}
 }
