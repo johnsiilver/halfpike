@@ -410,12 +410,10 @@ func (p *Parser) pull() Line {
 				line.LineNum = item.lineNum
 				item.raw = ""
 				item.lineNum = 0
-				fmt.Println("item.raw: ", item.raw)
 				line.Items = append(line.Items, item)
 				return
 			}
 			item.raw = ""
-			fmt.Println("item.raw: ", item.raw)
 			line.Items = append(line.Items, item)
 		}
 	}()

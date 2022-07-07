@@ -2,7 +2,6 @@ package halfpike
 
 import (
 	"context"
-	"log"
 	"os"
 	"strings"
 	"testing"
@@ -346,7 +345,6 @@ func (s *startWithCarriageObj) Start(ctx context.Context, p *Parser) ParseFn {
 	for {
 		line := p.Next()
 		if strings.HasPrefix(line.Raw, "\n") {
-			log.Printf("raw: %q", line.Raw)
 			return p.Errorf("[LineNum %d]: line.Raw begins with \\n", line.LineNum)
 		}
 		if p.EOF(line) {
