@@ -24,6 +24,14 @@ import (
 	"unicode/utf8"
 )
 
+const (
+	// eof represents an eof character that we return. However, its
+	// not really the EOF. UTF-8 doesn't do EOF, we simply know how
+	// big the file is. We simply use this control character as a rune
+	// to symbolize EOF. We do not return this to the user.
+	eof = '\x01'
+)
+
 // stateFn is used to process some part of an input line either emitting tokens and
 // returning the next stateFn or nil if terminating.
 // The last token should be ItemEOL.
@@ -184,8 +192,18 @@ func (l *lexer) run() {
 func (l *lexer) emit(t ItemType, ri ...rawInfo) ItemType {
 	var item Item
 	switch t {
-	case ItemEOL, ItemEOF:
-		item = Item{t, l.input[l.start:l.pos], ri[0].num, ri[0].str}
+	case ItemEOL:
+		item = Item{
+			Type: t,
+			Val: l.input[l.start:l.pos], 
+			lineNum: ri[0].num,
+			raw: ri[0].str,
+		}
+	case ItemEOF:
+		item = Item{
+			Type: t,
+			lineNum: ri[0].num,
+		}
 	default:
 		item = Item{Type: t, Val: l.input[l.start:l.pos]}
 	}
@@ -229,7 +247,7 @@ func (l *lexer) backup() {
 func (l *lexer) next() rune {
 	if l.pos >= len(l.input) {
 		l.width = 0
-		return rune(ItemEOF)
+		return eof
 	}
 	var r rune
 	r, l.width = utf8.DecodeRuneInString(l.input[l.pos:])
@@ -278,7 +296,24 @@ func untilEOF(l *lexer) stateFn {
 			raw.Reset()
 
 			lineNum++
-		case r == rune(ItemEOF):
+		case r == eof:
+			l.backup() // backup before the EOF.
+			if len(l.current()) > 0 {
+				switch {
+				case isInt(l.current()):
+					l.emit(ItemInt)
+				case isFloat(l.current()):
+					l.emit(ItemFloat)
+				case last == itemSpace:
+					// do nothing
+				default:
+					l.emit(ItemText)
+				}
+			}
+
+			// Emit the EOF.
+			l.next()
+			raw.Reset()
 			l.emit(ItemEOF, rawInfo{raw.String(), lineNum})
 			raw.Reset()
 			return nil

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/kylelemons/godebug/pretty"
-	//"fmt"
 )
 
 const str = `
@@ -33,7 +32,12 @@ func TestLexer(t *testing.T) {
 		{Type: ItemText, Val: "Flags:"},
 		{Type: ItemText, Val: "<Sync>"},
 		{Type: ItemEOL, Val: "\n", lineNum: 2, raw: "  Type: External    State: Established    Flags: <Sync>\n"},
-		{Type: ItemEOF, lineNum: 3, raw: "\x01"},
+		{Type: ItemEOF, lineNum: 3, raw: ""},
+	}
+
+	config := pretty.Config{
+		IncludeUnexported: true,
+		PrintStringers: true,
 	}
 
 	l := newLexer(context.Background(), str, untilEOF)
@@ -44,7 +48,7 @@ func TestLexer(t *testing.T) {
 		got = append(got, item)
 	}
 
-	if diff := pretty.Compare(want, got); diff != "" {
+	if diff := config.Compare(want, got); diff != "" {
 		t.Errorf("TestLexer: -want/+got:\n%s", diff)
 	}
 }
@@ -81,7 +85,7 @@ func TestNext(t *testing.T) {
 		},
 		{
 			LineNum: 3,
-			Raw:     "\x01",
+			Raw:     "",
 			Items: []Item{
 				{Type: ItemEOF},
 			},
@@ -367,5 +371,36 @@ func TestRegressionRawStartsWithCarriageReturn(t *testing.T) {
 
 	if err := Parse(context.Background(), string(f), obj); err != nil {
 		t.Fatalf("TestRegressionRawStartsWithCarriageReturn: got err == %s", err)
+	}
+}
+
+// TestRegressionEOLOnLastLine tests a bug where if we have a EOF after a single character in a line,
+// that the item comes out as a single item with type EOF, where it should be two items with EOF at the end.
+func TestRegressionEOLOnLastLine(t *testing.T) {
+text :=`a
+}`
+
+	want := []Item{
+		{Type: ItemText, Val:  "a"},
+		{Type: ItemEOL, Val: "\n"},
+		{Type: ItemText, Val: "}"},
+		{Type: ItemEOF},
+	}
+
+	config := pretty.Config{
+		IncludeUnexported: false,
+		PrintStringers: true,
+	}
+
+	l := newLexer(context.Background(), text, untilEOF)
+        go l.run()
+
+        got := []Item{}
+        for item := range l.items {
+                got = append(got, item)
+        }
+
+	if diff := config.Compare(want, got); diff != "" {
+		t.Errorf("TestRegressionEOLOnLastLine: -want/+got:\n%s", diff)
 	}
 }
